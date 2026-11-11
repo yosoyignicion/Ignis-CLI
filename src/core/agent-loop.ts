@@ -57,10 +57,10 @@ export async function runAgentLoop(
   const messages: unknown[] = [...initialMessages];
   const newMessages: unknown[] = [];
   let iterations = 0;
+  await emit({ type: "agent_start" });
 
   for (let i = 0; i < maxIterations; i++) {
     iterations += 1;
-    await emit({ type: "agent_start" });
     await emit({ type: "turn_start" });
 
     const response = await opts.provider.invoke({

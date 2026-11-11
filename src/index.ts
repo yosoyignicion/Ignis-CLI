@@ -1,24 +1,33 @@
-import { createTuiLayout, startTui, stopTui } from "./tui/tui.ts";
+import { dispatch } from "./cli.ts";
+import { startTui, stopTui, type TuiState } from "./tui/tui.ts";
 import { ignisState } from "./db/database.ts";
-import type { TuiState } from "./tui/tui.ts";
+import { loadConfig, setConfigValue } from "./core/config.ts";
 
-const db = ignisState;
-const telemetry = { tokensUsed: 0, model: "recursive/flint", latencyMs: 0, treeNodes: 0, costEstimate: 0 };
-const layout = createTuiLayout("MAIN", telemetry);
+const [, , cmd, ...rest] = process.argv;
 
 const shutdown = () => {
   stopTui();
   process.exit(0);
 };
 
+if (cmd) {
+  process.exit(dispatch(cmd, rest));
+}
+
+const cfg = loadConfig();
+
 const state: TuiState = {
-  layout,
-  telemetry,
-  messages: [{ role: "user", content: "task" }],
+  messages: [],
+  model: cfg.model || "sin modelo",
+  provider: cfg.provider || "sin proveedor",
+  effort: cfg.effort,
+  tokensUsed: 0,
   onQuit: shutdown,
+  persist: (key, value) => setConfigValue(key, value),
 };
 
 startTui(state);
 
 process.stdin.once("end", shutdown);
 process.stdin.once("close", shutdown);
+void ignisState;

@@ -4,7 +4,7 @@
 
 Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs Codex**, plasmado en TypeScript con **Node built-ins** (sin dependencias).
 
-[![Version](https://img.shields.io/badge/version-v1.0.3-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.3)
+[![Version](https://img.shields.io/badge/version-v1.0.5-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.5)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/yosoyignicion/Ignis-CLI/blob/master/LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
 
@@ -12,15 +12,15 @@ Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs
 
 - ✅ **F1–F5** — Sprint final concluido.
 - ✅ **Extras** — Registry de extensiones + capability `codemode`.
-- ✅ **Pre-release** — `v1.0.0` publicada en GitHub.
-- ✅ **Docs** — Este README.
+- ✅ **v1.0.5** — TUI interactiva estilo pi + consola de comandos + config de usuario.
+- ✅ **Por defecto** — `provider: ollama` · `model: qwen2.5-coder:7b` (Q4_K_M, local, tools).
 
 ## 🗺️ Fases
 
 - **F1** — Scaffold + SQLite (`ignis_state.db`) + árbol de sesiones.
 - **F2** — LLM multi-proveedor + core loop (eventos, tool calls, anti-bule).
 - **F3** — Contexto + inyección (`buildContextMessages`).
-- **F4** — TUI (scaffold + frame black bg / white / scarlet + start/stop).
+- **F4** — TUI interactiva (splash, input, `/comandos`, `ctrl+p`, footer).
 - **F5** — Tests/pulido (smoke, tests, perf).
 
 ## ✨ Extras
@@ -36,12 +36,12 @@ Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs
 ### Instalación vía curl (recomendada)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.3/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.5/install.sh | sh
 ```
 
 El instalador:
 
-1. Descarga el release `v1.0.3` del repositorio.
+1. Descarga el release `v1.0.5` del repositorio.
 2. Copia el código a `~/.ignis-cli/`.
 3. Crea el comando `ignis` en `~/.local/bin/`.
 
@@ -55,6 +55,21 @@ cd Ignis-CLI
 ```
 
 ## 🚀 Uso
+
+### Consola de comandos
+
+```bash
+ignis                  # TUI interactiva
+ignis config           # ver configuración (~/.config/ignis/config.json)
+ignis config get provider
+ignis config set provider ollama
+ignis config set model qwen2.5-coder:7b
+ignis models           # proveedor y modelo activos
+ignis doctor           # comprobación del entorno
+ignis version
+```
+
+Sin proveedor configurado, la TUI arranca como shell visual (`/provider`, `/model`, `/effort` dentro de la TUI también persisten en la config).
 
 ### Instalación (comando global)
 
