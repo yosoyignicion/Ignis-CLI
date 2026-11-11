@@ -2,6 +2,7 @@ export interface LLMRequest {
   model: string;
   messages: unknown[];
   tools?: unknown[];
+  signal?: AbortSignal;
 }
 
 export interface LLMResponse {
