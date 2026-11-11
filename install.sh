@@ -7,9 +7,9 @@ TMP_DIR="/tmp/ignis-cli-install"
 
 rm -rf "$TMP_DIR"
 mkdir -p "$TMP_DIR"
-curl -fsSL "https://github.com/$REPO/archive/refs/heads/$REF.tar.gz" -o "$TMP_DIR/ignis.tar.gz"
+curl -fsSL "https://github.com/$REPO/archive/refs/tags/$REF.tar.gz" -o "$TMP_DIR/ignis.tar.gz"
 tar xzf "$TMP_DIR/ignis.tar.gz" -C "$TMP_DIR"
-SRC="$TMP_DIR/Ignis-CLI-$REF"
+SRC="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d)"
 
 mkdir -p "$HOME/.ignis-cli"
 rm -rf "$HOME/.ignis-cli"

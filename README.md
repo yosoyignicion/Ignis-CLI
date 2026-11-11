@@ -6,7 +6,7 @@ Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs
 
 ## Estado
 
-Sprint final concluido. F1–F5 ✅ · Extras 🟡 · Docs ✅.
+Sprint final concluido. F1–F5 ✅ · Extras ✅ · Pre-release `v1.0.0` ✅ · Docs ✅.
 
 ## Fases
 
@@ -20,11 +20,42 @@ Sprint final concluido. F1–F5 ✅ · Extras 🟡 · Docs ✅.
 
 - Registry de extensiones + capability `codemode`.
 
-## Uso
+## Instalación
+
+### Requisitos
+
+- Node.js >= 22 (con soporte de TypeScript vía `--experimental-strip-types`).
+
+### Desde GitHub (curl)
 
 ```bash
-cd /home/ignicion/Agents/projects/pi-vs-claude-vs-codex/Ignis-CLI
+curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.0/install.sh | sh
+```
+
+El instalador descarga el release `v1.0.0`, lo instala en `~/.ignis-cli/` y crea el comando `ignis` en `~/.local/bin/`.
+
+Para instalar otra versión, cambia el valor de `REF` en `install.sh`.
+
+### Desde el repositorio
+
+```bash
+git clone https://github.com/yosoyignicion/Ignis-CLI.git
+cd Ignis-CLI
+```
+
+## Uso
+
+Tras la instalación (comando global):
+
+```bash
+ignis
+```
+
+En desarrollo (repositorio clonado):
+
+```bash
 node --experimental-strip-types src/index.ts
+# o
 ./bin/ignis
 ```
 
@@ -34,6 +65,6 @@ node --experimental-strip-types src/index.ts
 node --experimental-strip-types --test src/core/ignis.test.ts
 ```
 
----
+## License
 
-_Proyecto concluido._
+MIT

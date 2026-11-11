@@ -1,3 +1,12 @@
 #!/bin/sh
-DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SELF="$0"
+while [ -L "$SELF" ]; do
+  LINK_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+  SELF="$(readlink "$SELF")"
+  case "$SELF" in
+    /*) ;;
+    *) SELF="$LINK_DIR/$SELF" ;;
+  esac
+done
+DIR="$(cd "$(dirname "$SELF")/.." && pwd)"
 exec node --experimental-strip-types "$DIR/src/index.ts" "$@"
