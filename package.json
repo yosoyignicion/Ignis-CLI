@@ -1,0 +1,9 @@
+{
+  "name": "ignis-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Ignis-CLI: local, minimal, ultra-extensible agent harness with futuristic TUI.",
+  "scripts": {
+    "start": "node --experimental-strip-types src/index.ts"
+  }
+}
