@@ -33,6 +33,7 @@ export type TuiState = {
   layout: TuiLayout;
   telemetry: TuiTelemetry;
   messages: TuiMessage[];
+  onQuit?: () => void;
 };
 
 export function createTuiLayout(mainPane: unknown, telemetry: TuiTelemetry): TuiLayout {
@@ -82,7 +83,10 @@ export function startTui(state: TuiState): void {
     process.stdin.setRawMode(true);
     emitKeypressEvents(process.stdin, process.stdin);
     process.stdin.on("keypress", (_str, key) => {
-      if (key.name === "q" || key.ctrl) stopTui();
+      if (key.name === "q" || key.ctrl) {
+        stopTui();
+        state.onQuit?.();
+      }
     });
   }
 }
