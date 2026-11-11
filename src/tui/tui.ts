@@ -1,3 +1,5 @@
+import { emitKeypressEvents } from "node:readline";
+
 const ESC = "\x1b[";
 
 export const PALETTE = {
@@ -25,6 +27,12 @@ export type TuiTelemetry = {
 export type TuiMessage = {
   role: string;
   content: string;
+};
+
+export type TuiState = {
+  layout: TuiLayout;
+  telemetry: TuiTelemetry;
+  messages: TuiMessage[];
 };
 
 export function createTuiLayout(mainPane: unknown, telemetry: TuiTelemetry): TuiLayout {
@@ -60,4 +68,30 @@ export function renderFrame(layout: TuiLayout, telemetry: TuiTelemetry, messages
     bottom,
   ];
   return lines.join("\n");
+}
+
+let currentState: TuiState | null = null;
+let running = false;
+
+export function startTui(state: TuiState): void {
+  currentState = state;
+  running = true;
+  const frame = renderFrame(state.layout, state.telemetry, state.messages);
+  process.stdout.write(frame + "\n");
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+    emitKeypressEvents(process.stdin, process.stdin);
+    process.stdin.on("keypress", (_str, key) => {
+      if (key.name === "q" || key.ctrl) stopTui();
+    });
+  }
+}
+
+export function stopTui(): void {
+  running = false;
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(false);
+    process.stdin.removeAllListeners("keypress");
+  }
+  process.stdout.write("\x1b[2J\x1b[H");
 }
