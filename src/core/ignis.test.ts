@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import { buildContextMessages, loadContextFiles } from "./context.ts";
 import { ProviderRegistry } from "./provider.ts";
+import { runAgentLoop } from "./agent-loop.ts";
 
 test("buildContextMessages con contexto inyecta system+user", () => {
   const files = [
@@ -34,4 +35,16 @@ test("ProviderRegistry register/get/list", () => {
   r.register(p);
   assert.equal(r.get("mock"), p);
   assert.throws(() => r.get("nope"), /Unknown provider/);
+});
+
+test("runAgentLoop respeta maxIterations y finaliza con agent_end (anti-bucle)", async () => {
+  const provider = {
+    invoke: async () => ({ content: [{ type: "toolCall", id: "c1", name: "noop", arguments: {} }], stopReason: "toolUse" }),
+  };
+  const result = await runAgentLoop(
+    { provider, executeTool: async () => "ok", maxIterations: 2 },
+    [],
+  );
+  assert.equal(result.iterations, 2);
+  assert.equal(result.events.at(-1)?.type, "agent_end");
 });

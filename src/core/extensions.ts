@@ -1,7 +1,10 @@
 import type { ToolSpec } from "./agent-loop.ts";
 
+export type ExtensionKind = "tool" | "codemode" | "mcp";
+
 export type Extension = {
   name: string;
+  kind?: ExtensionKind;
   tools?: ToolSpec[];
   description?: string;
 };
@@ -20,4 +23,12 @@ export class ExtensionRegistry {
   list(): string[] {
     return [...this.extensions.keys()];
   }
+}
+
+export function createCodemodeExtension(): Extension {
+  return {
+    name: "codemode",
+    kind: "codemode",
+    description: "Run JS scripts that call tools and non-LLM models (classifiers, image models).",
+  };
 }
