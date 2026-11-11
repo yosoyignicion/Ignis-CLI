@@ -20,6 +20,10 @@ export function promptPath(): string {
   return join(configPath(), "..", "prompt.md");
 }
 
+export function planPath(): string {
+  return join(configPath(), "..", "plan.md");
+}
+
 type Tool = {
   spec: ToolSpec;
   run: (args: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
@@ -139,7 +143,26 @@ const self_edit: Tool = {
   },
 };
 
-const TOOLS = [read_file, write_file, edit_file, list_dir, run_cmd, self_edit];
+// Plan-then-execute: el plan persistido mantiene el foco del modelo aunque el contexto crezca.
+const plan_write: Tool = {
+  spec: {
+    name: "plan_write",
+    description: "crea o actualiza el plan de la tarea (~/.config/ignis/plan.md): fases numeradas con [ ] pendiente / [x] hecha. Obligatorio para tareas de más de 3 pasos: planifica primero y ejecuta fase a fase, actualizando el plan al completar cada una.",
+    inputSchema: {
+      type: "object",
+      properties: { content: { type: "string" } },
+      required: ["content"],
+    },
+  },
+  run: async (args) => {
+    const content = argStr(args, "content");
+    if (content.length > 4000) return `error: plan demasiado largo (${content.length} > 4000)`;
+    await writeFile(planPath(), content);
+    return "plan actualizado";
+  },
+};
+
+const TOOLS = [read_file, write_file, edit_file, list_dir, run_cmd, plan_write, self_edit];
 
 export function buildToolset(): {
   tools: ToolSpec[];

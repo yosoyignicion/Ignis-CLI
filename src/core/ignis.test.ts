@@ -68,6 +68,19 @@ test("toolset: read/write/edit roundtrip y guardas de self_edit", async () => {
   assert.ok((promptPath() as string).endsWith("prompt.md"));
 });
 
+test("ollama: multi-captura de tool-calls volcadas en texto", async () => {
+  const { parseToolCallsFromText } = await import("./ollama.ts");
+  const names = new Set(["write_file", "run_cmd", "plan_write"]);
+  const text = '{"name": "run_cmd", "arguments": {"cmd": "mkdir -p /tmp/x"}}\n{"name": "write_file", "arguments": {"path": "/tmp/x/a.txt", "content": "hola"}}';
+  const calls = parseToolCallsFromText(text, names);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0]!.arguments, { cmd: "mkdir -p /tmp/x" });
+  assert.deepEqual(calls[1]!.arguments, { path: "/tmp/x/a.txt", content: "hola" });
+  // xml + fence + plano mezclados
+  const mixed = '\uFFFAtool_call{"name": "plan_write", "arguments": {"content": "p"}}\uFFFB```json\n{"name": "run_cmd", "arguments": {"cmd": "ls"}}\n```';
+  assert.equal(parseToolCallsFromText(mixed, names).length, 2);
+});
+
 test("ollama: mapeo de mensajes y respuestas (sin red)", async () => {
   const { toOllamaMessages, fromOllamaResponse, extractText } = await import("./ollama.ts");
   const msgs = toOllamaMessages([
@@ -93,6 +106,13 @@ test("ollama: mapeo de mensajes y respuestas (sin red)", async () => {
   // texto JSON que no coincide con ninguna tool: permanece como texto
   const other = fromOllamaResponse({ message: { content: '{"name": "desconocida", "arguments": {}}' } }, new Set(["write_file"]));
   assert.equal(other.stopReason, "stop");
+  // formato ReAct nativo de Qwen: \uFFFAtool_call...\uFFFB
+  const react = fromOllamaResponse(
+    { message: { content: 'pensamiento \uFFFAtool_call{"name": "list_dir", "arguments": {"path": "."}}\uFFFB' } },
+    new Set(["list_dir"]),
+  );
+  assert.equal(react.stopReason, "toolUse");
+  assert.deepEqual(extractToolCallsTest(react.content)[0], { id: "tc_0", name: "list_dir", arguments: { path: "." } });
 });
 
 function extractToolCallsTest(content: unknown): Array<{ id: string; name: string; arguments: Record<string, unknown> }> {

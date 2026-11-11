@@ -20,6 +20,7 @@ export interface AgentLoopOptions {
   maxIterations?: number;
   signal?: AbortSignal;
   onEvent?: (event: AgentEvent) => void | Promise<void>;
+  onToken?: (text: string) => void;
   executeTool?: (name: string, args: Record<string, unknown>, signal?: AbortSignal) => Promise<unknown>;
   model?: string;
 }
@@ -41,6 +42,14 @@ function extractToolCalls(content: unknown): Array<{ id: string; name: string; a
     }
   }
   return toolCalls;
+}
+
+function textOf(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.filter((b) => (b as { type?: string }).type === "text").map((b) => (b as { text?: string }).text ?? "").join("");
+  }
+  return "";
 }
 
 export async function runAgentLoop(
@@ -68,6 +77,7 @@ export async function runAgentLoop(
       messages,
       tools: opts.tools,
       signal: opts.signal,
+      onToken: opts.onToken,
     });
     const toolCalls = extractToolCalls(response.content);
     const assistantMessage: Record<string, unknown> = {
@@ -88,6 +98,12 @@ export async function runAgentLoop(
     await emit({ type: "message_end", message: assistantMessage });
 
     if (toolCalls.length === 0) {
+      if (textOf(assistantMessage.content).trim() === "" && i < maxIterations - 1) {
+        // modelo local devolvió respuesta vacía (fallo conocido de Qwen con tools): nudge y reintento
+        messages.push({ role: "user", content: "[sistema] Respuesta vacía. Continúa: llama a una tool o escribe la respuesta final." });
+        newMessages.push({ role: "user", content: "[sistema] (nudge por respuesta vacía)" });
+        continue;
+      }
       await emit({ type: "turn_end", message: assistantMessage, toolResults: [] });
       await emit({ type: "agent_end", messages: newMessages });
       break;

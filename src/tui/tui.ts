@@ -1,6 +1,8 @@
 import { emitKeypressEvents } from "node:readline";
 import { readFileSync } from "node:fs";
 import { VERSION } from "../version.ts";
+import { planPath } from "../core/tools.ts";
+import { readFile } from "node:fs/promises";
 
 const ESC = "\x1b[";
 
@@ -60,6 +62,8 @@ export type TuiState = {
   onQuit?: () => void;
   persist?: (key: "model" | "effort" | "provider", value: string) => void;
   onSubmit?: (text: string, push: (m: TuiMessage) => TuiMessage) => Promise<void>;
+  /** lo fija startTui: redibuja el frame (streaming token a token) */
+  refresh?: () => void;
 };
 
 // ---------- estado interno ----------
@@ -124,6 +128,7 @@ function commands(rt: Runtime): Command[] {
     { name: "/effort", arg: "<low|medium|high>", desc: "nivel de effort/reasoning", run: (a) => { if (a === "low" || a === "medium" || a === "high") { rt.state.effort = a; rt.state.persist?.("effort", a); setSystemMsg(rt, `effort → ${a}`); } else setSystemMsg(rt, "uso: /effort <low|medium|high>"); } },
     { name: "/provider", arg: "<nombre>", desc: "proveedor activo (p.ej. ollama)", run: (a) => { if (a) { rt.state.provider = a; rt.state.persist?.("provider", a); setSystemMsg(rt, `proveedor → ${a}`); } else setSystemMsg(rt, "uso: /provider <nombre>"); } },
     { name: "/agents", desc: "alternar modo agentes", run: () => { rt.agentsMode = !rt.agentsMode; setSystemMsg(rt, `modo agentes → ${rt.agentsMode ? "on" : "off"}`); } },
+    { name: "/plan", desc: "ver el plan de la tarea actual", run: async () => { try { const plan = await readFile(planPath(), "utf8"); for (const line of plan.trim().split("\n")) setSystemMsg(rt, `plan: ${line}`); } catch { setSystemMsg(rt, "sin plan (plan_write lo crea el agente)"); } } },
     { name: "/mcps", desc: "servidores MCP habilitados", run: () => setSystemMsg(rt, `${MCP_COUNT} MCP habilitado(s) en .pi/mcp.json`) },
     { name: "/clear", desc: "limpia la conversación", run: () => { rt.state.messages.length = 0; rt.input = ""; rt.caret = 0; } },
     { name: "/quit", desc: "salir de Ignis", run: () => quit(rt) },
@@ -466,6 +471,7 @@ export function startTui(state: TuiState): void {
     agentsMode: false,
     running: true,
   };
+  state.refresh = () => { if (rt?.running) draw(); };
   if (!process.stdout.isTTY) {
     process.stdout.write(renderStatic(state) + "\n");
     return;

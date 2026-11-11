@@ -6,6 +6,7 @@ import { OllamaProvider, extractText } from "./core/ollama.ts";
 import { buildToolset } from "./core/tools.ts";
 import { loadPrompt } from "./core/prompt.ts";
 import { runAgentLoop } from "./core/agent-loop.ts";
+import { runWithPlanContinuation } from "./core/agent-plan.ts";
 
 const [, , cmd, ...rest] = process.argv;
 
@@ -19,7 +20,9 @@ if (cmd) {
 }
 
 const cfg = loadConfig();
-const provider = cfg.provider === "ollama" && cfg.model ? new OllamaProvider(cfg.host, cfg.model) : null;
+const provider = cfg.provider === "ollama" && cfg.model
+  ? new OllamaProvider(cfg.host, cfg.model, Number(cfg.temperature) || 0.7, Number(cfg.num_ctx) || 32768)
+  : null;
 const toolset = buildToolset();
 
 const state: TuiState = {
@@ -37,15 +40,18 @@ const state: TuiState = {
     }
     const status = push({ role: "system", content: "· trabajando…" });
     const statusIdx = () => state.messages.indexOf(status);
-    await runAgentLoop(
+    const stream = push({ role: "assistant", content: "" });
+    await runWithPlanContinuation(
       {
         provider,
         model: cfg.model,
         tools: toolset.tools,
         maxIterations: 12,
         executeTool: toolset.execute,
+        onToken: (t) => { stream.content += t; state.refresh?.(); },
         onEvent: (ev) => {
           if (ev.type === "tool_execution_start") {
+            stream.content = "";
             status.content = `· ${ev.toolName} ${Object.keys(ev.args as Record<string, unknown>)[0] ? JSON.stringify((ev.args as Record<string, unknown>)[Object.keys(ev.args as Record<string, unknown>)[0]]).slice(0, 48) : ""}…`;
             return;
           }
@@ -53,9 +59,14 @@ const state: TuiState = {
             const m = ev.message as { role?: string; content?: unknown };
             if (m.role === "assistant") {
               const t = extractText(m.content).trim();
-              if (t) push({ role: "assistant", content: t });
-              const i = statusIdx();
-              if (i >= 0) state.messages.splice(i, 1);
+              stream.content = t;
+              if (!t) {
+                const i = state.messages.indexOf(stream);
+                if (i >= 0) state.messages.splice(i, 1);
+              }
+              const j = statusIdx();
+              if (j >= 0) state.messages.splice(j, 1);
+              state.refresh?.();
             }
           }
         },
@@ -65,6 +76,7 @@ const state: TuiState = {
         { role: "user", content: text },
       ],
     );
+    state.tokensUsed = provider.promptTokens + provider.evalTokens;
   },
 };
 

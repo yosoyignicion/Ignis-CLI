@@ -4,7 +4,7 @@
 
 Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs Codex**, plasmado en TypeScript con **Node built-ins** (sin dependencias).
 
-[![Version](https://img.shields.io/badge/version-v1.0.6-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.6)
+[![Version](https://img.shields.io/badge/version-v1.0.7-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.7)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/yosoyignicion/Ignis-CLI/blob/master/LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
 
@@ -27,8 +27,21 @@ Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs
 
 - **Registry de extensiones** con capability `codemode`: permite ejecutar JS scripts que llaman tools y modelos no-LLM (classifiers, image models).
 - **Agente funcional (v1.0.6)**: `OllamaProvider` (`/api/chat`, tool calling) + agent-loop cableado a la TUI y a `ignis run`.
-- **Toolset optimizado para modelo local**: `read_file`, `write_file`, `edit_file`, `list_dir`, `run_cmd` (timeout 30s, salida truncada a 3 KB) y `self_edit`.
+- **Toolset optimizado para modelo local**: `read_file`, `write_file`, `edit_file`, `list_dir`, `run_cmd` (timeout 30s, salida truncada a 3 KB), `plan_write` y `self_edit`.
 - **Automejora**: el agente puede reescribir sus instrucciones propias con `self_edit` → `~/.config/ignis/prompt.md` (persiste entre sesiones; si no existe se usa el prompt default afinado para qwen2.5-coder:7b).
+
+## 🧪 Agenticidad (v1.0.7)
+
+- **Parser multi-formato de tool-calls**: nativo de Ollama, JSON plano, bloques ```json```, `<tool_call>` ReAct de Qwen y **multi-captura** (el 7b vuelca varias llamadas por turno; máx. 8 por turno).
+- **Plan-then-execute**: tareas de +3 pasos → el agente escribe el plan (`plan_write`, fases `[ ]/[x]`) y **el controlador lo impone**: si quedan fases y el último turno ejecutó tools, reinicia el loop con un empujón.
+- **Streaming token a token** en la TUI (NDJSON de `/api/chat`), contadores de tokens en el footer.
+- **Contexto real**: `num_ctx: 32768` (el default de Ollama es 4096 — el modelo soporta 32k), `temperature` y `num_predict` configurables (`ignis config`).
+- **Nudges de recuperación**: respuesta vacía del modelo → reintento guiado (fallo conocido de Qwen2.5-Coder con tools).
+- **`ignis eval [--live]`**: batería de validación con puntuación /100 (12 comprobaciones offline+live; **100%** verificado con `qwen2.5-coder:7b` Q4_K_M).
+
+### Limitaciones conocidas del 7b (Q4_K_M)
+- El cumplimiento de instrucciones multi-restricción es variable: a veces narra en vez de llamar tools, o deja el plan sin marcar `[x]` al final. La TUI (multi-turno) lo compensa: escribe "continúa". El controlador de plan mitiga el resto.
+- `qwen2.5-coder` no es un gran tool-user (documentado en ollama#19524): Ignis lo soporta con parseo defensivo + validación por nombre de tool.
 
 ## 📦 Instalación
 
@@ -39,12 +52,12 @@ Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs
 ### Instalación vía curl (recomendada)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.6/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.7/install.sh | sh
 ```
 
 El instalador:
 
-1. Descarga el release `v1.0.6` del repositorio.
+1. Descarga el release `v1.0.7` del repositorio.
 2. Copia el código a `~/.ignis-cli/`.
 3. Crea el comando `ignis` en `~/.local/bin/`.
 
