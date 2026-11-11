@@ -64,6 +64,8 @@ export type TuiState = {
   onQuit?: () => void;
   persist?: (key: "model" | "effort" | "provider", value: string) => void;
   onSubmit?: (text: string, push: (m: TuiMessage) => TuiMessage) => Promise<void>;
+  /** lo fija el submit mientras hay tarea en marcha: cancela con doble escape */
+  cancel?: () => void;
   /** lo fija startTui: redibuja el frame (streaming token a token) */
   refresh?: () => void;
 };
@@ -81,6 +83,7 @@ type Runtime = {
   paletteIndex: number;
   agentsMode: boolean;
   running: boolean;
+  lastEscape: number;
 };
 
 let rt: Runtime | null = null;
@@ -204,28 +207,69 @@ function renderTranscriptLine(m: TuiMessage, width: number): string[] {
   return wrapped.map((w, i) => (i === 0 ? `${fg(PALETTE.dim)}●${RESET} ${fg(PALETTE.dim)}${w}${RESET}` : `  ${fg(PALETTE.dim)}${w}${RESET}`));
 }
 
-function renderBox(rt: Runtime, cols: number): { lines: string[]; boxX: number; caretRow: number; caretCol: number } {
-  const boxW = Math.max(24, Math.min(cols - 6, 64));
-  const inner = boxW - 3;
+const BOX_INPUT_ROWS = 3;
+const TRANSCRIPT_MARGIN = 6;
+
+function renderBox(rt: Runtime, cols: number): { lines: string[]; height: number; caretRow: number; caretCol: number } {
+  const boxW = Math.max(40, Math.min(cols - 12, 78));
+  const boxX = Math.max(0, Math.floor((cols - boxW) / 2));
   const bar = `${fg(PALETTE.agentState)}▌${RESET}`;
   const visibleLen = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "").length;
-  const field = (content: string) => `${bg(PALETTE.boxBg)} ${content}${" ".repeat(Math.max(0, boxW - 2 - visibleLen(content)))}${RESET}`;
-  const lines: string[] = [];
-  const textW = Math.max(1, inner - 1);
-  const start = rt.caret > textW ? rt.caret - textW : 0;
-  const visible = rt.input.slice(start, start + textW);
-  const caretCol = 2 + (rt.caret - start);
-  if (rt.input.length === 0) {
-    lines.push(`${bar}${field(`${fg(PALETTE.dim)}Ask anything… "Fix a TODO in the codebase"${RESET}`)}`);
-  } else {
-    lines.push(`${bar}${field(`${fg(PALETTE.text)}${visible}${RESET}`)}`);
+  const pad = (n: number) => " ".repeat(Math.max(0, n));
+  const field = (content: string) => `${bg(PALETTE.boxBg)} ${content}${pad(boxW - 2 - visibleLen(content))}${RESET}`;
+  const textW = boxW - 4; // sangría interna simétrica
+
+  // input con wrap por palabras → filas {text, start}
+  const rows: Array<{ text: string; start: number }> = [];
+  let i = 0;
+  while (i < rt.input.length) {
+    let end = Math.min(i + textW, rt.input.length);
+    if (end < rt.input.length) {
+      const brk = rt.input.lastIndexOf(" ", end - 1);
+      if (brk > i) end = brk + 1;
+    }
+    rows.push({ text: rt.input.slice(i, end), start: i });
+    i = end;
   }
+  if (rows.length === 0) rows.push({ text: "", start: 0 });
+
+  // fila y columna del caret
+  let cRow = rows.length - 1;
+  let cCol = rt.caret;
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r]!;
+    const next = rows[r + 1];
+    if (rt.caret <= row.start + row.text.length && (!next || rt.caret < next.start)) { cRow = r; cCol = rt.caret - row.start; break; }
+  }
+
+  // ventana de scroll: el caret siempre visible
+  const startRow = Math.max(0, Math.min(cRow - (BOX_INPUT_ROWS - 1), rows.length - BOX_INPUT_ROWS));
+  const lines: string[] = [];
+  for (let s = 0; s < BOX_INPUT_ROWS; s++) {
+    const row = rows[startRow + s];
+    let content = row?.text ? `${fg(PALETTE.text)}${row.text}${RESET}` : "";
+    if (!content && s === 0 && rt.input.length === 0) {
+      content = `${fg(PALETTE.dim)}Ask anything… "Fix a TODO in the codebase"${RESET}`;
+    }
+    lines.push(`${pad(boxX)}${bar}${field(content)}`);
+  }
+
+  const scrollNote = rows.length > BOX_INPUT_ROWS ? `${fg(PALETTE.dim)} · ↕${rows.length - BOX_INPUT_ROWS + 1}${RESET}` : "";
+  const cancelNote = rt.state.cancel ? `${fg(PALETTE.dim)} · ${RESET}${fg(PALETTE.yellow, true)}esc×2 cancela${RESET}` : "";
   const status =
     `${fg(PALETTE.white, true)}[${rt.state.provider}]${RESET}` +
     `${fg(PALETTE.dim)} · ${rt.state.model} · effort ${RESET}${fg(PALETTE.yellow)}[${rt.state.effort}]${RESET}` +
-    (rt.agentsMode ? `${fg(PALETTE.dim)} · ${RESET}${fg(PALETTE.accent, true)}agents${RESET}` : "");
-  lines.push(`${bar}${field(status)}`);
-  return { lines, boxX: 0, caretRow: 0, caretCol: Math.min(caretCol, boxW - 1) };
+    (rt.agentsMode ? `${fg(PALETTE.dim)} · ${RESET}${fg(PALETTE.accent, true)}agents${RESET}` : "") +
+    scrollNote +
+    cancelNote;
+  lines.push(`${pad(boxX)}${bar}${field(status)}`);
+
+  return {
+    lines,
+    height: BOX_INPUT_ROWS + 1,
+    caretRow: cRow - startRow,
+    caretCol: boxX + 2 + Math.min(cCol, textW),
+  };
 }
 
 function renderHints(rt: Runtime, cols: number): string {
@@ -249,7 +293,7 @@ function renderMenu(rt: Runtime, rows: string[], boxRow: number): void {
   const height = Math.min(5, filtered.length, Math.max(0, boxRow - 1));
   if (height === 0) return;
   rt.menuIndex = Math.min(rt.menuIndex, filtered.length - 1);
-  const width = Math.max(24, Math.min(rows[0].length + 40, 64));
+  const width = Math.min(64, Math.max(24, ...filtered.slice(0, 5).map((cmd) => cmd.name.length + cmd.desc.length + 4)));
   const top = Math.max(0, boxRow - height - 1);
   const start = Math.max(0, Math.min(rt.menuIndex - height + 1, filtered.length - height));
   for (let i = 0; i < height; i++) {
@@ -310,28 +354,37 @@ function compose(rt: Runtime, cols: number, rows: number): Frame {
   let boxRow: number;
   if (rt.state.messages.length === 0) {
     const logo = renderLogo();
-    const logoRow = Math.max(1, Math.floor(totalRows * 0.2));
+    // caja centrada verticalmente; logo flotando encima
+    boxRow = Math.max(6, Math.min(Math.floor(totalRows / 2) - 2, totalRows - box.height - 4));
+    const logoRow = boxRow - logo.length - 2;
     const logoX = Math.floor((c - 22) / 2);
     for (let i = 0; i < logo.length; i++) {
-      lines[logoRow + i] = " ".repeat(Math.max(0, logoX)) + logo[i];
+      const r = logoRow + i;
+      if (r >= 0) lines[r] = " ".repeat(Math.max(0, logoX)) + logo[i]!;
     }
-    boxRow = Math.min(logoRow + 6, totalRows - 4);
   } else {
-    const maxTranscript = Math.max(1, totalRows - 5);
+    boxRow = Math.max(box.height + 2, totalRows - box.height - 4);
+    // transcripción: márgenes sanos, respiro entre mensajes, anclada abajo (último mensaje pegado a la caja)
+    const maxRows = Math.max(1, boxRow - 1);
     const rendered: string[] = [];
-    for (const m of rt.state.messages) rendered.push(...renderTranscriptLine(m, c));
-    const tail = rendered.slice(-maxTranscript);
-    for (let i = 0; i < tail.length; i++) lines[i] = tail[i];
-    boxRow = totalRows - 4;
+    rt.state.messages.forEach((m, idx) => {
+      if (idx > 0) rendered.push("");
+      for (const l of renderTranscriptLine(m, c - 2 * TRANSCRIPT_MARGIN)) rendered.push(" ".repeat(TRANSCRIPT_MARGIN) + l);
+    });
+    const tail = rendered.slice(-maxRows);
+    const base = Math.max(0, boxRow - 1 - tail.length);
+    for (let i = 0; i < tail.length; i++) lines[base + i] = tail[i]!;
   }
 
-  lines[boxRow] = box.lines[0];
-  lines[boxRow + 1] = box.lines[1];
-  lines[boxRow + 2] = hints;
+  for (let i = 0; i < box.height; i++) lines[boxRow + i] = box.lines[i] ?? "";
+  if (boxRow + box.height < totalRows - 1) {
+    lines[boxRow + box.height] = ""; // respiro bajo la caja
+    lines[boxRow + box.height + 1] = hints;
+  }
   lines[totalRows - 1] = footer;
 
   renderMenu(rt, lines, boxRow);
-  let caretRow = boxRow;
+  let caretRow = boxRow + box.caretRow;
   let caretCol = box.caretCol + 1;
   const pal = renderPalette(rt, lines, c, totalRows);
   if (pal) {
@@ -359,6 +412,7 @@ export function renderStatic(state: TuiState, cols = 80, rows = 24): string {
     paletteIndex: 0,
     agentsMode: false,
     running: false,
+    lastEscape: 0,
   };
   return compose(fake, cols, rows).text;
 }
@@ -392,8 +446,18 @@ function onKeypress(str: string | undefined, key: { name?: string; ctrl?: boolea
   }
 
   switch (k.name) {
-    case "escape":
+    case "escape": {
+      // doble escape: cancela la tarea en marcha. El doble pulso rápido llega
+      // batcheado como un solo evento {escape, meta}; el lento como dos escapes <700ms.
+      const now = Date.now();
+      if ((k.meta || now - rt.lastEscape < 700) && rt.state.cancel) {
+        rt.lastEscape = 0;
+        rt.state.cancel();
+      } else {
+        rt.lastEscape = now;
+      }
       break;
+    }
     case "up":
       if (rt.input.startsWith("/")) rt.menuIndex = Math.max(0, rt.menuIndex - 1);
       break;
@@ -480,6 +544,7 @@ export function startTui(state: TuiState): void {
     paletteIndex: 0,
     agentsMode: false,
     running: true,
+    lastEscape: 0,
   };
   state.refresh = () => { if (rt?.running) draw(); };
   if (!process.stdout.isTTY) {

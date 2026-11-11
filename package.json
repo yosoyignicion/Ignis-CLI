@@ -1,6 +1,6 @@
 {
   "name": "ignis-cli",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "type": "module",
   "description": "Ignis-CLI: local, minimal, ultra-extensible agent harness with futuristic TUI.",
   "scripts": {

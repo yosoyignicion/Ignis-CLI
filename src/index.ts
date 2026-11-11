@@ -41,6 +41,8 @@ const state: TuiState = {
     const status = push({ role: "system", content: "· trabajando…" });
     const statusIdx = () => state.messages.indexOf(status);
     const stream = push({ role: "assistant", content: "" });
+    const ac = new AbortController();
+    state.cancel = () => ac.abort();
     try {
       await runWithPlanContinuation(
         {
@@ -49,6 +51,7 @@ const state: TuiState = {
           tools: toolset.tools,
           maxIterations: 12,
           executeTool: toolset.execute,
+          signal: ac.signal,
           onToken: (t) => { stream.content += t; state.refresh?.(); },
           onEvent: (ev) => {
             if (ev.type === "tool_execution_start") {
@@ -79,10 +82,12 @@ const state: TuiState = {
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      status.content = `● error: ${msg.slice(0, 160)}`;
+      status.content = ac.signal.aborted ? "● cancelado (esc×2)" : `● error: ${msg.slice(0, 160)}`;
       const i = state.messages.indexOf(stream);
       if (i >= 0 && !stream.content) state.messages.splice(i, 1);
       state.refresh?.();
+    } finally {
+      state.cancel = undefined;
     }
     state.tokensUsed = provider.promptTokens + provider.evalTokens;
   },
