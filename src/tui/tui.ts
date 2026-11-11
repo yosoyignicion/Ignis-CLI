@@ -59,6 +59,7 @@ export type TuiState = {
   tokensUsed?: number;
   onQuit?: () => void;
   persist?: (key: "model" | "effort" | "provider", value: string) => void;
+  onSubmit?: (text: string, push: (m: TuiMessage) => TuiMessage) => Promise<void>;
 };
 
 // ---------- estado interno ----------
@@ -148,7 +149,13 @@ function execInput(rt: Runtime): void {
     }
   } else {
     rt.state.messages.push({ role: "user", content: text });
-    setSystemMsg(rt, "demo: agent-loop sin cablear — provider registry vacío");
+    const push = (m: TuiMessage): TuiMessage => { rt.state.messages.push(m); if (rt.running) draw(); return m; };
+    const submit = rt.state.onSubmit;
+    if (submit) {
+      void submit(text, push).catch((e) => push({ role: "system", content: `error: ${e instanceof Error ? e.message : String(e)}` })).finally(() => { if (rt.running) draw(); });
+    } else {
+      setSystemMsg(rt, "demo: agent-loop sin cablear — provider registry vacío");
+    }
   }
   rt.input = "";
   rt.caret = 0;

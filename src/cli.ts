@@ -1,5 +1,9 @@
 import { VERSION } from "./version.ts";
 import { CONFIG_DEFAULTS, CONFIG_KEYS, configPath, loadConfig, setConfigValue } from "./core/config.ts";
+import { OllamaProvider, extractText } from "./core/ollama.ts";
+import { buildToolset } from "./core/tools.ts";
+import { loadPrompt } from "./core/prompt.ts";
+import { runAgentLoop } from "./core/agent-loop.ts";
 
 const USAGE = `Ignis-CLI v${VERSION} — uso:
 
@@ -7,6 +11,7 @@ const USAGE = `Ignis-CLI v${VERSION} — uso:
   ignis config             ver configuración
   ignis config get <clave>            leer una clave
   ignis config set <clave> <valor>    fijar una clave
+  ignis run <tarea>        ejecuta una tarea con el agente (no interactivo)
   ignis models             proveedor y modelo activos
   ignis doctor             comprobación del entorno
   ignis help [comando]     esta ayuda
@@ -66,19 +71,31 @@ function cmdModels(): number {
   return 0;
 }
 
-function cmdDoctor(): number {
+async function cmdDoctor(): Promise<number> {
   let fail = false;
   const nodeMajor = parseInt(process.versions.node.split(".")[0]!, 10);
   if (nodeMajor >= 22) console.log(`✓ node ${process.versions.node}`);
   else { console.log(`✗ node ${process.versions.node} (se requiere >= 22 por --experimental-strip-types)`); fail = true; }
   const cfg = loadConfig();
   console.log(`✓ config ${configPath()} — provider=${cfg.provider || "(sin definir)"} model=${cfg.model || "(sin definir)"} effort=${cfg.effort}`);
-  if (!cfg.provider) console.log("· sin proveedor asociado: la TUI arranca como shell visual");
+  if (cfg.provider === "ollama") {
+    try {
+      const res = await fetch(`${cfg.host.replace(/\/$/, "")}/api/tags`, { signal: AbortSignal.timeout(2500) });
+      const models = (await res.json() as { models?: Array<{ name?: string }> }).models ?? [];
+      const found = models.some((m) => m.name === cfg.model);
+      console.log(`${found ? "✓" : "·"} ollama ${cfg.host} — modelo ${cfg.model} ${found ? "disponible" : "no está en la lista de ollama (ollama pull " + cfg.model + ")"}`);
+    } catch {
+      console.log(`✗ ollama no responde en ${cfg.host}`);
+      fail = true;
+    }
+  } else if (!cfg.provider) {
+    console.log("· sin proveedor asociado: la TUI arranca como shell visual");
+  }
   console.log(`✓ effort por defecto ${CONFIG_DEFAULTS.effort}`);
   return fail ? 1 : 0;
 }
 
-export function dispatch(cmd: string, args: string[]): number {
+export async function dispatch(cmd: string, args: string[]): Promise<number> {
   switch (cmd) {
     case "help":
     case "--help":
@@ -92,6 +109,8 @@ export function dispatch(cmd: string, args: string[]): number {
       return 0;
     case "config":
       return cmdConfig(args);
+    case "run":
+      return cmdRun(args);
     case "models":
       return cmdModels();
     case "doctor":
@@ -100,4 +119,48 @@ export function dispatch(cmd: string, args: string[]): number {
       console.error(`comando desconocido: ${cmd}\n\n${USAGE}`);
       return 1;
   }
+}
+
+async function cmdRun(args: string[]): Promise<number> {
+  const task = args.join(" ").trim();
+  if (!task) {
+    console.error("uso: ignis run <tarea>");
+    return 1;
+  }
+  const cfg = loadConfig();
+  if (cfg.provider !== "ollama" || !cfg.model) {
+    console.error("sin proveedor activo: ignis config set provider ollama && ignis config set model <modelo>");
+    return 1;
+  }
+  const provider = new OllamaProvider(cfg.host, cfg.model);
+  const toolset = buildToolset();
+  let status = "";
+  const result = await runAgentLoop(
+    {
+      provider,
+      model: cfg.model,
+      tools: toolset.tools,
+      maxIterations: 12,
+      executeTool: toolset.execute,
+      onEvent: (ev) => {
+        if (ev.type === "tool_execution_start") status = `· ${ev.toolName}`;
+        if (ev.type === "message_end") {
+          const m = ev.message as { role?: string; content?: unknown };
+          if (m.role === "assistant") {
+            const t = extractText(m.content).trim();
+            if (t) {
+              if (status) console.error(status);
+              console.log(t);
+            }
+          }
+        }
+      },
+    },
+    [
+      { role: "system", content: await loadPrompt() },
+      { role: "user", content: task },
+    ],
+  );
+  console.error(`fin: ${result.iterations} iteración(es)`);
+  return 0;
 }

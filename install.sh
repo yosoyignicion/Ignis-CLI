@@ -2,7 +2,7 @@
 set -e
 
 REPO="yosoyignicion/Ignis-CLI"
-REF="v1.0.5"
+REF="v1.0.6"
 TMP_DIR="/tmp/ignis-cli-install"
 
 rm -rf "$TMP_DIR"
