@@ -1,8 +1,10 @@
 import { emitKeypressEvents } from "node:readline";
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 import { VERSION } from "../version.ts";
 import { planPath } from "../core/tools.ts";
-import { readFile } from "node:fs/promises";
+import { listSkills } from "../core/skills.ts";
 
 const ESC = "\x1b[";
 
@@ -125,11 +127,13 @@ function commands(rt: Runtime): Command[] {
   return [
     { name: "/help", desc: "lista de comandos", run: () => { for (const c of commands(rt)) setSystemMsg(rt, `${c.name}${c.arg ? " " + c.arg : ""} — ${c.desc}`); } },
     { name: "/model", arg: "<model>", desc: "cambia el modelo activo", run: (a) => { if (a) { rt.state.model = a; rt.state.persist?.("model", a); setSystemMsg(rt, `modelo activo → ${a}`); } else setSystemMsg(rt, "uso: /model <provider/model>"); } },
-    { name: "/effort", arg: "<low|medium|high>", desc: "nivel de effort/reasoning", run: (a) => { if (a === "low" || a === "medium" || a === "high") { rt.state.effort = a; rt.state.persist?.("effort", a); setSystemMsg(rt, `effort → ${a}`); } else setSystemMsg(rt, "uso: /effort <low|medium|high>"); } },
+    { name: "/effort", arg: "<none|low|medium|high|max>", desc: "nivel de effort/reasoning", run: (a) => { if (["none", "low", "medium", "high", "max"].includes(a)) { rt.state.effort = a; rt.state.persist?.("effort", a); setSystemMsg(rt, `effort → ${a}`); } else setSystemMsg(rt, "uso: /effort <none|low|medium|high|max>"); } },
     { name: "/provider", arg: "<nombre>", desc: "proveedor activo (p.ej. ollama)", run: (a) => { if (a) { rt.state.provider = a; rt.state.persist?.("provider", a); setSystemMsg(rt, `proveedor → ${a}`); } else setSystemMsg(rt, "uso: /provider <nombre>"); } },
     { name: "/agents", desc: "alternar modo agentes", run: () => { rt.agentsMode = !rt.agentsMode; setSystemMsg(rt, `modo agentes → ${rt.agentsMode ? "on" : "off"}`); } },
     { name: "/plan", desc: "ver el plan de la tarea actual", run: async () => { try { const plan = await readFile(planPath(), "utf8"); for (const line of plan.trim().split("\n")) setSystemMsg(rt, `plan: ${line}`); } catch { setSystemMsg(rt, "sin plan (plan_write lo crea el agente)"); } } },
-    { name: "/mcps", desc: "servidores MCP habilitados", run: () => setSystemMsg(rt, `${MCP_COUNT} MCP habilitado(s) en .pi/mcp.json`) },
+    { name: "/mcps", desc: "MCPs del proyecto con estado", run: () => { try { const obj = JSON.parse(readFileSync(join(process.cwd(), ".pi", "mcp.json"), "utf8")) as { mcpServers?: Record<string, { enabled?: boolean }> }; const servers = obj.mcpServers ?? {}; const names = Object.keys(servers); if (names.length === 0) setSystemMsg(rt, "sin MCPs en .pi/mcp.json"); for (const n of names) setSystemMsg(rt, `mcp: ${n} [${servers[n]?.enabled !== false ? "habilitado" : "deshabilitado"}] (gestiona: ignis mcps en consola)`); } catch { setSystemMsg(rt, "no hay .pi/mcp.json en este proyecto"); } } },
+    { name: "/skills", desc: "skills reconocidas y usables", run: async () => { const skills = await listSkills(); if (skills.length === 0) { setSystemMsg(rt, "sin skills — crea .md en ~/.config/ignis/skills o .pi/skills"); return; } for (const s of skills) setSystemMsg(rt, `skill: ${s.name} [${s.source}]`); } },
+    { name: "/update", desc: "comprobar última release de GitHub", run: async () => { try { const res = await fetch("https://api.github.com/repos/yosoyignicion/Ignis-CLI/releases/latest", { headers: { "user-agent": "ignis-cli" }, signal: AbortSignal.timeout(5000) }); const tag = (await res.json() as { tag_name?: string }).tag_name ?? ""; if (tag.slice(1) === VERSION) setSystemMsg(rt, `estás en la última versión (${VERSION})`); else setSystemMsg(rt, `disponible ${tag} — ejecuta: ignis update en consola`); } catch { setSystemMsg(rt, "no se pudo consultar GitHub"); } } },
     { name: "/clear", desc: "limpia la conversación", run: () => { rt.state.messages.length = 0; rt.input = ""; rt.caret = 0; } },
     { name: "/quit", desc: "salir de Ignis", run: () => quit(rt) },
   ];

@@ -41,8 +41,8 @@ export function setConfigValue(key: string, value: string): { ok: boolean; error
   if (!(CONFIG_KEYS as string[]).includes(key)) {
     return { ok: false, error: `clave desconocida: ${key} (válidas: ${CONFIG_KEYS.join(", ")})` };
   }
-  if (key === "effort" && !["low", "medium", "high"].includes(value)) {
-    return { ok: false, error: "effort debe ser low|medium|high" };
+  if (key === "effort" && !["none", "low", "medium", "high", "max"].includes(value)) {
+    return { ok: false, error: "effort debe ser none|low|medium|high|max" };
   }
   const cfg = loadConfig();
   (cfg as unknown as Record<string, string>)[key] = value;

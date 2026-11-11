@@ -4,7 +4,7 @@
 
 Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs Codex**, plasmado en TypeScript con **Node built-ins** (sin dependencias).
 
-[![Version](https://img.shields.io/badge/version-v1.0.7-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.7)
+[![Version](https://img.shields.io/badge/version-v1.0.8-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.8)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/yosoyignicion/Ignis-CLI/blob/master/LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
 
@@ -52,12 +52,12 @@ Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs
 ### Instalación vía curl (recomendada)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.7/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.8/install.sh | sh
 ```
 
 El instalador:
 
-1. Descarga el release `v1.0.7` del repositorio.
+1. Descarga el release `v1.0.8` del repositorio.
 2. Copia el código a `~/.ignis-cli/`.
 3. Crea el comando `ignis` en `~/.local/bin/`.
 
@@ -80,10 +80,17 @@ ignis config           # ver configuración (~/.config/ignis/config.json)
 ignis config get provider
 ignis config set provider ollama
 ignis config set model qwen2.5-coder:7b
+ignis config set effort none|low|medium|high|max
 ignis models           # proveedor y modelo activos
 ignis doctor           # comprobación del entorno
+ignis mcps             # MCPs del proyecto: ver y gestionar (interactivo)
+ignis skills           # skills reconocidas y usables por el agente
+ignis update           # actualiza a la última release de GitHub
+ignis uninstall [--yes] # borrado sano de Ignis-CLI y su configuración
 ignis version
 ```
+
+Skills: crea ficheros `.md` en `~/.config/ignis/skills/` (usuario) o `.pi/skills/` (proyecto). El agente los ve listados en su prompt y los lee con `read_file`.
 
 Sin proveedor configurado, la TUI arranca como shell visual (`/provider`, `/model`, `/effort` dentro de la TUI también persisten en la config).
 

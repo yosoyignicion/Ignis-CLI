@@ -9,8 +9,13 @@ import { runWithPlanContinuation } from "./core/agent-plan.ts";
 import { toOllamaMessages, fromOllamaResponse } from "./core/ollama.ts";
 import { renderStatic } from "./tui/tui.ts";
 import { readFile, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { lstatSync, readFileSync, writeFileSync } from "node:fs";
+import { createInterface } from "node:readline/promises";
+import { exec } from "node:child_process";
+import { homedir } from "node:os";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { listSkills, skillsDirs } from "./core/skills.ts";
 
 const USAGE = `Ignis-CLI v${VERSION} — uso:
 
@@ -20,6 +25,10 @@ const USAGE = `Ignis-CLI v${VERSION} — uso:
   ignis config set <clave> <valor>    fijar una clave
   ignis run <tarea>        ejecuta una tarea con el agente (no interactivo)
   ignis eval [--live]      batería de validación (puntuación /100)
+  ignis mcps               MCPs del proyecto: ver y gestionar (interactivo en TTY)
+  ignis skills             skills reconocidas y usables por el agente
+  ignis update             comprueba y aplica la última release de GitHub
+  ignis uninstall [--yes]  borrado sano de Ignis-CLI y su configuración
   ignis models             proveedor y modelo activos
   ignis doctor             comprobación del entorno
   ignis help [comando]     esta ayuda
@@ -121,6 +130,14 @@ export async function dispatch(cmd: string, args: string[]): Promise<number> {
       return cmdRun(args);
     case "eval":
       return cmdEval(args);
+    case "mcps":
+      return cmdMcps();
+    case "skills":
+      return cmdSkills();
+    case "update":
+      return cmdUpdate();
+    case "uninstall":
+      return cmdUninstall(args);
     case "models":
       return cmdModels();
     case "doctor":
@@ -216,6 +233,146 @@ async function cmdEval(args: string[]): Promise<number> {
   if (!live) console.log("  (usa --live para incluir comprobaciones con el modelo real)\n");
   else console.log("");
   return score === 100 ? 0 : 1;
+}
+
+async function cmdUninstall(args: string[]): Promise<number> {
+  const force = args.includes("--yes");
+  const appDir = join(process.env.HOME ?? "", ".ignis-cli");
+  const bin = join(process.env.HOME ?? "", ".local", "bin", "ignis");
+  const cfgDir = join(configPath(), "..");
+  console.log("uninstall eliminará:");
+  console.log(`  ${appDir}`);
+  console.log(`  ${bin} (symlink)`);
+  console.log(`  ${cfgDir} (config, prompt, plan, skills)`);
+  console.log("  (.pi/ del proyecto se conserva)");
+  if (!force) {
+    if (!process.stdin.isTTY) {
+      console.error("\nno interactivo: usa --yes para confirmar");
+      return 1;
+    }
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const answer = (await rl.question('\nescribe "si" para confirmar: ')).trim().toLowerCase();
+    rl.close();
+    if (answer !== "si") { console.log("abortado"); return 1; }
+  }
+  await rm(appDir, { recursive: true, force: true });
+  try { if (lstatSync(bin).isSymbolicLink()) await rm(bin); } catch { /* no existía */ }
+  await rm(cfgDir, { recursive: true, force: true });
+  console.log("Ignis-CLI desinstalado. La db ignis_state.db de cada proyecto se conserva.");
+  return 0;
+}
+
+async function cmdUpdate(): Promise<number> {
+  console.log("comprobando última release…");
+  let tag = "";
+  try {
+    const res = await fetch("https://api.github.com/repos/yosoyignicion/Ignis-CLI/releases/latest", {
+      headers: { "user-agent": "ignis-cli" },
+      signal: AbortSignal.timeout(6000),
+    });
+    tag = (await res.json() as { tag_name?: string }).tag_name ?? "";
+  } catch (e) {
+    console.error(`no se pudo consultar GitHub: ${e instanceof Error ? e.message : e}`);
+    return 1;
+  }
+  if (!tag.startsWith("v")) { console.error("respuesta inesperada de GitHub"); return 1; }
+  const latest = tag.slice(1);
+  const cmp = compareSemver(latest, VERSION);
+  if (cmp <= 0) { console.log(`ya estás en la última versión (${VERSION})`); return 0; }
+  console.log(`actualizando ${VERSION} → ${tag}…`);
+  await new Promise<void>((resolve, reject) => {
+    exec(`curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/${tag}/install.sh | sh`, (err, stdout, stderr) => {
+      if (stdout) process.stdout.write(stdout);
+      if (stderr) process.stderr.write(stderr);
+      err ? reject(err) : resolve();
+    });
+  });
+  console.log(`instalado ${tag}. Reinicia cualquier sesión abierta de ignis.`);
+  return 0;
+}
+
+function compareSemver(a: string, b: string): number {
+  const pa = a.split(".").map((n) => parseInt(n, 10));
+  const pb = b.split(".").map((n) => parseInt(n, 10));
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] ?? 0) > (pb[i] ?? 0)) return 1;
+    if ((pa[i] ?? 0) < (pb[i] ?? 0)) return -1;
+  }
+  return 0;
+}
+
+function readMcps(): { path: string; servers: Record<string, { enabled?: boolean }> } | null {
+  const path = join(process.cwd(), ".pi", "mcp.json");
+  try {
+    const obj = JSON.parse(readFileSync(path, "utf8")) as { mcpServers?: Record<string, { enabled?: boolean }> };
+    return { path, servers: obj.mcpServers ?? {} };
+  } catch {
+    return null;
+  }
+}
+
+function writeMcps(path: string, servers: Record<string, { enabled?: boolean }>): void {
+  writeFileSync(path, JSON.stringify({ mcpServers: servers }, null, 2) + "\n");
+}
+
+function printMcps(servers: Record<string, { enabled?: boolean }>): void {
+  const names = Object.keys(servers);
+  if (names.length === 0) { console.log("sin MCPs configurados"); return; }
+  names.forEach((n, i) => {
+    const on = servers[n]?.enabled !== false;
+    console.log(`  ${i + 1}. ${n}  [${on ? "habilitado" : "deshabilitado"}]`);
+  });
+}
+
+async function cmdMcps(): Promise<number> {
+  const mcp = readMcps();
+  if (!mcp) {
+    console.error(`no hay .pi/mcp.json en el proyecto (${process.cwd()})`);
+    console.error("crea uno con: { \"mcpServers\": { \"<nombre>\": { \"enabled\": true } } }");
+    return 1;
+  }
+  console.log(`MCPs en ${mcp.path}:`);
+  printMcps(mcp.servers);
+  if (!process.stdin.isTTY) return 0;
+  console.log("\ninteractivo: <n> alternar · del <n> borrar · q salir");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  for (;;) {
+    const line = (await rl.question("> ")).trim();
+    if (line === "q" || line === "") { rl.close(); return 0; }
+    const del = line.match(/^del\s+(\d+)$/);
+    const names = Object.keys(mcp.servers);
+    if (del) {
+      const idx = parseInt(del[1]!, 10) - 1;
+      if (idx < 0 || idx >= names.length) { console.log("índice fuera de rango"); continue; }
+      delete mcp.servers[names[idx]!];
+      writeMcps(mcp.path, mcp.servers);
+      console.log("borrado.");
+    } else if (/^\d+$/.test(line)) {
+      const idx = parseInt(line, 10) - 1;
+      if (idx < 0 || idx >= names.length) { console.log("índice fuera de rango"); continue; }
+      const name = names[idx]!;
+      const now = mcp.servers[name]?.enabled === false;
+      mcp.servers[name] = { ...mcp.servers[name], enabled: now };
+      writeMcps(mcp.path, mcp.servers);
+      console.log(`${name} → ${now ? "habilitado" : "deshabilitado"}`);
+    } else {
+      console.log("uso: <n> alternar · del <n> borrar · q salir");
+    }
+    printMcps(mcp.servers);
+  }
+}
+
+async function cmdSkills(): Promise<number> {
+  const skills = await listSkills();
+  if (skills.length === 0) {
+    console.log("sin skills. Crea ficheros .md en:");
+    for (const { dir, source } of skillsDirs()) console.log(`  ${dir}  (${source})`);
+    console.log("el agente las verá listadas en su prompt y podrá leerlas con read_file.");
+    return 0;
+  }
+  console.log(`skills activas (${skills.length}):`);
+  for (const s of skills) console.log(`  ${s.name.padEnd(24)} [${s.source}] ${s.path}`);
+  return 0;
 }
 
 async function cmdRun(args: string[]): Promise<number> {

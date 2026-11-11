@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { promptPath } from "./tools.ts";
+import { listSkills } from "./skills.ts";
 
 export const DEFAULT_PROMPT = `# Ignis
 Eres Ignis, agente de código local (qwen2.5-coder:7b vía Ollama). Trabajas en el cwd del usuario.
@@ -27,11 +28,17 @@ Eres Ignis, agente de código local (qwen2.5-coder:7b vía Ollama). Trabajas en 
 Responde en español, directo. Al cerrar una tarea: qué hiciste, qué verificaste, qué queda.`;
 
 export async function loadPrompt(): Promise<string> {
+  let prompt = DEFAULT_PROMPT;
   try {
     const custom = await readFile(promptPath(), "utf8");
-    if (custom.trim().length >= 40) return custom;
+    if (custom.trim().length >= 40) prompt = custom;
   } catch {
     // sin prompt propio: se usa el default
   }
-  return DEFAULT_PROMPT;
+  const skills = await listSkills();
+  if (skills.length > 0) {
+    prompt += "\n\n## Skills disponibles (léelas con read_file si la tarea las requiere)\n";
+    prompt += skills.map((s) => `- ${s.name} (${s.source}): ${s.path}`).join("\n");
+  }
+  return prompt;
 }
