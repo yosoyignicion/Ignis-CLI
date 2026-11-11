@@ -121,6 +121,7 @@ function renderLogo(): string[] {
 // ---------- comandos ----------
 function setSystemMsg(rt: Runtime, content: string): void {
   rt.state.messages.push({ role: "system", content });
+  if (rt.running) draw();
 }
 
 function commands(rt: Runtime): Command[] {
@@ -250,8 +251,10 @@ function renderMenu(rt: Runtime, rows: string[], boxRow: number): void {
   rt.menuIndex = Math.min(rt.menuIndex, filtered.length - 1);
   const width = Math.max(24, Math.min(rows[0].length + 40, 64));
   const top = Math.max(0, boxRow - height - 1);
+  const start = Math.max(0, Math.min(rt.menuIndex - height + 1, filtered.length - height));
   for (let i = 0; i < height; i++) {
-    const idx = i;
+    const idx = start + i;
+    if (idx >= filtered.length) break;
     const cmd = filtered[idx];
     const selected = idx === rt.menuIndex;
     const line = `${selected ? bg(PALETTE.selBg) : ""}` +
@@ -279,12 +282,15 @@ function renderPalette(rt: Runtime, rows: string[], cols: number, totalRows: num
   const q = ` ❯ ${rt.paletteQuery}`;
   put(top + 2, `${fg(PALETTE.border)}│${RESET}${fg(PALETTE.text)}${q.slice(0, w - 3)}${RESET}${" ".repeat(Math.max(0, w - 3 - q.length))}${fg(PALETTE.border)}│${RESET}`);
   put(top + 3, `${fg(PALETTE.border)}├${"─".repeat(w - 2)}┤${RESET}`);
-  const show = filtered.slice(0, Math.max(0, h - 5));
+  const showCount = Math.max(1, h - 5);
+  const start = Math.max(0, Math.min(rt.paletteIndex - showCount + 1, filtered.length - showCount));
+  const show = filtered.slice(start, start + showCount);
   for (let i = 0; i < show.length; i++) {
     const cmd = show[i];
-    const selected = i === rt.paletteIndex;
-    const line = ` ${fg(selected ? PALETTE.white : PALETTE.text, true)}${cmd.name.padEnd(12)}${RESET}${fg(PALETTE.dim)}${cmd.desc.slice(0, w - 16)}${RESET}`;
-    put(top + 4 + i, `${fg(PALETTE.border)}│${RESET}${selected ? bg(PALETTE.selBg) : ""}${line}${" ".repeat(Math.max(0, w - 3 - 13 - Math.min(cmd.desc.length, w - 16)))}${RESET}${selected ? bg(PALETTE.selBg) : ""}${fg(PALETTE.border)}│${RESET}`);
+    const selected = start + i === rt.paletteIndex;
+    const descCut = cmd.desc.slice(0, Math.max(0, w - 17));
+    const line = ` ${fg(selected ? PALETTE.white : PALETTE.text, true)}${cmd.name.padEnd(12)}${RESET}${fg(PALETTE.dim)}${descCut}${RESET}`;
+    put(top + 4 + i, `${fg(PALETTE.border)}│${RESET}${selected ? bg(PALETTE.selBg) : ""}${line}${" ".repeat(Math.max(0, w - 2 - 13 - descCut.length))}${RESET}${selected ? bg(PALETTE.selBg) : ""}${fg(PALETTE.border)}│${RESET}`);
   }
   put(top + h - 1, `${fg(PALETTE.border)}└${"─".repeat(w - 2)}┘${RESET}`);
   return { caretRow: top + 2, caretCol: Math.min(w - 2, left + 4 + rt.paletteQuery.length) };
@@ -325,7 +331,7 @@ function compose(rt: Runtime, cols: number, rows: number): Frame {
   lines[totalRows - 1] = footer;
 
   renderMenu(rt, lines, boxRow);
-  const caretRow = boxRow;
+  let caretRow = boxRow;
   let caretCol = box.caretCol + 1;
   const pal = renderPalette(rt, lines, c, totalRows);
   if (pal) {
@@ -333,10 +339,10 @@ function compose(rt: Runtime, cols: number, rows: number): Frame {
     caretCol = pal.caretCol;
   }
 
-  let text = "";
+  let text = `${ESC}H`;
   for (let i = 0; i < totalRows; i++) {
-    text += `${ESC}H${ESC}K` + lines[i];
-    text += i < totalRows - 1 ? "\r\n" : "";
+    if (i > 0) text += "\r\n";
+    text += (lines[i] ?? "") + `${ESC}K`; // pinta la fila y limpia el resto de la línea
   }
   text += `${ESC}${caretRow + 1};${caretCol + 1}H`;
   return { text, caretRow, caretCol };

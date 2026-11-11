@@ -135,7 +135,8 @@ export class OllamaProvider {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
-      signal: req.signal,
+      // sin señal externa: 180s por turno (carga fría ~30s + generaciones largas)
+      signal: req.signal ?? AbortSignal.timeout(180_000),
     });
     if (!res.ok) throw new Error(`ollama ${res.status}: ${await res.text()}`);
     if (!onToken) {
@@ -162,8 +163,9 @@ export class OllamaProvider {
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
         if (!line) continue;
-        let chunk: { message?: { content?: string; tool_calls?: typeof toolCalls }; done?: boolean; prompt_eval_count?: number; eval_count?: number };
+        let chunk: { message?: { content?: string; tool_calls?: typeof toolCalls }; done?: boolean; prompt_eval_count?: number; eval_count?: number; error?: string };
         try { chunk = JSON.parse(line); } catch { continue; }
+        if (chunk.error) throw new Error(`ollama: ${chunk.error}`);
         const tok = chunk.message?.content ?? "";
         if (tok) { text += tok; onToken(tok); }
         if (chunk.message?.tool_calls) toolCalls = toolCalls.concat(chunk.message.tool_calls);

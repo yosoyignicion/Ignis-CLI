@@ -7,6 +7,8 @@ export type IgnisConfig = {
   model: string;
   effort: string;
   host: string;
+  temperature: string;
+  num_ctx: string;
 };
 
 export const CONFIG_DEFAULTS: IgnisConfig = {
@@ -14,6 +16,8 @@ export const CONFIG_DEFAULTS: IgnisConfig = {
   model: "",
   effort: "high",
   host: "http://localhost:11434",
+  temperature: "0.7",
+  num_ctx: "16384",
 };
 
 export const CONFIG_KEYS = Object.keys(CONFIG_DEFAULTS) as Array<keyof IgnisConfig>;
