@@ -4,7 +4,7 @@
 
 Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs Codex**, plasmado en TypeScript con **Node built-ins** (sin dependencias).
 
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-v1.0.1-pre.1-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.1-pre.1)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/yosoyignicion/Ignis-CLI/blob/master/LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
 
@@ -36,12 +36,12 @@ Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs
 ### Instalación vía curl (recomendada)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.0/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.1-pre.1/install.sh | sh
 ```
 
 El instalador:
 
-1. Descarga el release `v1.0.0` del repositorio.
+1. Descarga el release `v1.0.1-pre.1` del repositorio.
 2. Copia el código a `~/.ignis-cli/`.
 3. Crea el comando `ignis` en `~/.local/bin/`.
 
