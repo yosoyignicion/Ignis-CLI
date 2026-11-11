@@ -1,14 +1,21 @@
-# Ignis-CLI
+# Ignis-CLI ⚡
 
 **Harness de agente local, minimalista, ultra-extensible, con TUI futurista.**
 
 Construido a partir de la ingeniería inversa comparativa **Pi vs Claude Code vs Codex**, plasmado en TypeScript con **Node built-ins** (sin dependencias).
 
-## Estado
+[![Version](https://img.shields.io/badge/version-v1.0.0-blue)](https://github.com/yosoyignicion/Ignis-CLI/releases/tag/v1.0.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/yosoyignicion/Ignis-CLI/blob/master/LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org)
 
-Sprint final concluido. F1–F5 ✅ · Extras ✅ · Pre-release `v1.0.0` ✅ · Docs ✅.
+## 📊 Estado del proyecto
 
-## Fases
+- ✅ **F1–F5** — Sprint final concluido.
+- ✅ **Extras** — Registry de extensiones + capability `codemode`.
+- ✅ **Pre-release** — `v1.0.0` publicada en GitHub.
+- ✅ **Docs** — Este README.
+
+## 🗺️ Fases
 
 - **F1** — Scaffold + SQLite (`ignis_state.db`) + árbol de sesiones.
 - **F2** — LLM multi-proveedor + core loop (eventos, tool calls, anti-bule).
@@ -16,42 +23,46 @@ Sprint final concluido. F1–F5 ✅ · Extras ✅ · Pre-release `v1.0.0` ✅ ·
 - **F4** — TUI (scaffold + frame black bg / white / scarlet + start/stop).
 - **F5** — Tests/pulido (smoke, tests, perf).
 
-## Extras
+## ✨ Extras
 
-- Registry de extensiones + capability `codemode`.
+- **Registry de extensiones** con capability `codemode`: permite ejecutar JS scripts que llaman tools y modelos no-LLM (classifiers, image models).
 
-## Instalación
+## 📦 Instalación
 
 ### Requisitos
 
-- Node.js >= 22 (con soporte de TypeScript vía `--experimental-strip-types`).
+- **Node.js >= 22** (con soporte de TypeScript vía `--experimental-strip-types`).
 
-### Desde GitHub (curl)
+### Instalación vía curl (recomendada)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yosoyignicion/Ignis-CLI/v1.0.0/install.sh | sh
 ```
 
-El instalador descarga el release `v1.0.0`, lo instala en `~/.ignis-cli/` y crea el comando `ignis` en `~/.local/bin/`.
+El instalador:
+
+1. Descarga el release `v1.0.0` del repositorio.
+2. Copia el código a `~/.ignis-cli/`.
+3. Crea el comando `ignis` en `~/.local/bin/`.
 
 Para instalar otra versión, cambia el valor de `REF` en `install.sh`.
 
-### Desde el repositorio
+### Instalación desde el repositorio
 
 ```bash
 git clone https://github.com/yosoyignicion/Ignis-CLI.git
 cd Ignis-CLI
 ```
 
-## Uso
+## 🚀 Uso
 
-Tras la instalación (comando global):
+### Instalación (comando global)
 
 ```bash
 ignis
 ```
 
-En desarrollo (repositorio clonado):
+### Desarrollo (repositorio clonado)
 
 ```bash
 node --experimental-strip-types src/index.ts
@@ -59,12 +70,12 @@ node --experimental-strip-types src/index.ts
 ./bin/ignis
 ```
 
-## Tests
+## 🧪 Tests
 
 ```bash
 node --experimental-strip-types --test src/core/ignis.test.ts
 ```
 
-## License
+## 📄 Licencia
 
 MIT
